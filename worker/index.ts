@@ -39,7 +39,10 @@ app.get("/", (_req, res) => {
 // express.raw keeps the body as raw bytes. Parsing JSON first and re-serializing
 // would change the bytes and break the signature check.
 app.post("/webhook", express.raw({ type: "*/*", limit: "1mb" }), async (req, res) => {
-  if (!Buffer.isBuffer(req.body) || !isValidSignature(req.body, req.get("X-Hub-Signature-256"))) {
+  // req.body can be anything in Express's types, so check it really is raw bytes,
+  // then only use this checked variable from here on.
+  const rawBody: unknown = req.body;
+  if (!Buffer.isBuffer(rawBody) || !isValidSignature(rawBody, req.get("X-Hub-Signature-256"))) {
     res.status(401).send("Invalid signature");
     return;
   }
@@ -57,8 +60,10 @@ app.post("/webhook", express.raw({ type: "*/*", limit: "1mb" }), async (req, res
 
   let repo: string;
   try {
-    const payload = JSON.parse(req.body.toString("utf8"));
-    repo = String(payload.repository?.full_name ?? "unknown repo").slice(0, 200);
+    const payload: { repository?: { full_name?: unknown } } | null = JSON.parse(rawBody.toString("utf8"));
+    const fullName = payload?.repository?.full_name;
+    // Accept the repo name only if it's really a string; anything else gets a safe default.
+    repo = typeof fullName === "string" ? fullName.slice(0, 200) : "unknown repo";
   } catch {
     res.status(400).send("Invalid JSON");
     return;
