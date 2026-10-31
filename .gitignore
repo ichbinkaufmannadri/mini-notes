@@ -1,0 +1,4 @@
+# Personal / local files, not part of the app
+CLAUDE.md
+.claude/
+.idea/
